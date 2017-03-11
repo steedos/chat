@@ -1,3 +1,5 @@
+import moment from 'moment'
+
 Meteor.methods
 	'mailMessages': (data) ->
 		if not Meteor.userId()
@@ -23,7 +25,9 @@ Meteor.methods
 					emails.push user.emails[0].address
 				else
 					missing.push username
-		console.log emails
+
+		console.log 'Sending messages to e-mails: ', emails
+
 		for email in emails
 			unless rfcMailPatternWithName.test email.trim()
 				throw new Meteor.Error('error-invalid-email', "Invalid email #{email}", { method: 'mailMessages', email: email })
@@ -40,6 +44,10 @@ Meteor.methods
 				Function(localeFn)()
 
 		html = ""
+
+		header = RocketChat.placeholders.replace(RocketChat.settings.get('Email_Header') || "")
+		footer = RocketChat.placeholders.replace(RocketChat.settings.get('Email_Footer') || "")
+
 		RocketChat.models.Messages.findByRoomIdAndMessageIds(data.rid, data.messages, { sort: { ts: 1 } }).forEach (message) ->
 			dateTime = moment(message.ts).locale(data.language).format('L LT')
 			html += "<p style='margin-bottom: 5px'><b>#{message.u.username}</b> <span style='color: #aaa; font-size: 12px'>#{dateTime}</span><br />" + RocketChat.Message.parse(message, data.language) + "</p>"
@@ -50,7 +58,7 @@ Meteor.methods
 				from: RocketChat.settings.get('From_Email')
 				replyTo: email
 				subject: data.subject
-				html: html
+				html: header + html + footer
 
 			console.log 'Sending email to ' + emails.join(', ')
 

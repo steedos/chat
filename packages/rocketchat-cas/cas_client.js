@@ -21,9 +21,8 @@ var openCenteredPopup = function(url, width, height) {
 };
 
 Meteor.loginWithCas = function(options, callback) {
-	
 	options = options || {};
-	
+
 	var credentialToken = Random.id();
 	var login_url = RocketChat.settings.get('CAS_login_url');
 	var popup_width = RocketChat.settings.get('CAS_popup_width');
@@ -33,7 +32,8 @@ Meteor.loginWithCas = function(options, callback) {
 		return;
 	}
 
-	var loginUrl = login_url + '?service=' + Meteor.absoluteUrl('_cas/') + credentialToken;
+	var appUrl = Meteor.absoluteUrl().replace(/\/$/, '') + __meteor_runtime_config__.ROOT_URL_PATH_PREFIX;
+	var loginUrl = login_url + '?service=' + appUrl + '/_cas/' + credentialToken;
 
 	var popup = openCenteredPopup(
 		loginUrl,
@@ -41,29 +41,46 @@ Meteor.loginWithCas = function(options, callback) {
 		popup_height || 600
 	);
 
-	var checkPopupOpen = setInterval(function() {
-		var popupClosed;
-		try {
-			// Fix for #328 - added a second test criteria (popup.closed === undefined)
-			// to humour this Android quirk:
-			// http://code.google.com/p/android/issues/detail?id=21061
-			popupClosed = popup.closed || popup.closed === undefined;
-		} catch (e) {
-			// For some unknown reason, IE9 (and others?) sometimes (when
-			// the popup closes too quickly?) throws "SCRIPT16386: No such
-			// interface supported" when trying to read 'popup.closed'. Try
-			// again in 100ms.
-			return;
-		}
-
-		if (popupClosed) {
-			clearInterval(checkPopupOpen);
-
+	// Fix for #3200: monitor the popup differently if it's Cordova
+	if (Meteor.isCordova) {
+		// Check the URL when each page finishes loading, and if the URL contains "ticket", then close the popup because CAS has finished
+		popup.addEventListener('loadstop', function(e) {
+			if (e.url.indexOf('?ticket=') !== -1) {
+				popup.close();
+			}
+		});
+		popup.addEventListener('exit', function() {
 			// check auth on server.
 			Accounts.callLoginMethod({
 				methodArguments: [{ cas: { credentialToken: credentialToken } }],
 				userCallback: callback
 			});
-		}
-	}, 100);
+		});
+	} else {
+		var checkPopupOpen = setInterval(function() {
+			var popupClosed;
+			try {
+				// Fix for #328 - added a second test criteria (popup.closed === undefined)
+				// to humour this Android quirk:
+				// http://code.google.com/p/android/issues/detail?id=21061
+				popupClosed = popup.closed || popup.closed === undefined;
+			} catch (e) {
+				// For some unknown reason, IE9 (and others?) sometimes (when
+				// the popup closes too quickly?) throws "SCRIPT16386: No such
+				// interface supported" when trying to read 'popup.closed'. Try
+				// again in 100ms.
+				return;
+			}
+
+			if (popupClosed) {
+				clearInterval(checkPopupOpen);
+
+				// check auth on server.
+				Accounts.callLoginMethod({
+					methodArguments: [{ cas: { credentialToken: credentialToken } }],
+					userCallback: callback
+				});
+			}
+		}, 100);
+	}
 };

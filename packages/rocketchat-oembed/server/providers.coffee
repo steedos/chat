@@ -30,7 +30,7 @@ providers.registerProvider
 	urls: [new RegExp('https?://vimeo.com/[^/]+'), new RegExp('https?://vimeo.com/channels/[^/]+/[^/]+'), new RegExp('https://vimeo.com/groups/[^/]+/videos/[^/]+')]
 	endPoint: 'https://vimeo.com/api/oembed.json?maxheight=200'
 providers.registerProvider
-	urls: [new RegExp('https?://www.youtube.com/\\S+'), new RegExp('https?://www.youtu.be/\\S+')]
+	urls: [new RegExp('https?://www.youtube.com/\\S+'), new RegExp('https?://youtu.be/\\S+')]
 	endPoint: 'https://www.youtube.com/oembed?maxheight=200'
 providers.registerProvider
 	urls: [new RegExp('https?://www.rdio.com/\\S+'), new RegExp('https?://rd.io/\\S+')]
@@ -60,6 +60,7 @@ RocketChat.callbacks.add 'oembed:beforeGetUrlContent', (data) ->
 			delete data.urlObj.search
 
 	return data
+, RocketChat.callbacks.priority.MEDIUM, 'oembed-providers-before'
 
 RocketChat.callbacks.add 'oembed:afterParseContent', (data) ->
 	if data.parsedUrl?.query?
@@ -71,10 +72,12 @@ RocketChat.callbacks.add 'oembed:afterParseContent', (data) ->
 			provider = providers.getProviderForUrl url
 			if provider?
 				if data.content?.body?
-					metas = JSON.parse data.content.body;
-					_.each metas, (value, key) ->
-						if _.isString value
-							data.meta[changeCase.camelCase('oembed_' + key)] = value
-					data.meta['oembedUrl'] = url
+					try
+						metas = JSON.parse data.content.body;
+						_.each metas, (value, key) ->
+							if _.isString value
+								data.meta[changeCase.camelCase('oembed_' + key)] = value
+						data.meta['oembedUrl'] = url
 
 	return data
+, RocketChat.callbacks.priority.MEDIUM, 'oembed-providers-after'

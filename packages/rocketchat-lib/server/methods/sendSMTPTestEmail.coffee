@@ -9,13 +9,19 @@ Meteor.methods
 
 		this.unblock()
 
-		Email.send
-			to: user.emails[0].address
-			from: RocketChat.settings.get('From_Email')
-			subject: "SMTP Test Email"
-			html: "You have successfully sent an email"
+		header = RocketChat.placeholders.replace(RocketChat.settings.get('Email_Header') || '');
+		footer = RocketChat.placeholders.replace(RocketChat.settings.get('Email_Footer') || '');
 
-		console.log 'Sending email to ' + user.emails[0].address
+		console.log 'Sending test email to ' + user.emails[0].address
+
+		try
+			Email.send
+				to: user.emails[0].address
+				from: RocketChat.settings.get('From_Email')
+				subject: "SMTP Test Email"
+				html: header + "<p>You have successfully sent an email</p>" + footer
+		catch error
+			throw new Meteor.Error 'error-email-send-failed', 'Error trying to send email: ' + error.message, { method: 'sendSMTPTestEmail', message: error.message }
 
 		return {
 			message: "Your_mail_was_sent_to_s"

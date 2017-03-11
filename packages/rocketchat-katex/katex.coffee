@@ -3,21 +3,21 @@
 # https://github.com/Khan/KaTeX
 ###
 
+katex = require('katex')
+
 class Katex
-	delimiters_map: {
-		'\\[': { closer: '\\]', displayMode: true  },
-		'\\(': { closer: '\\)', displayMode: false },
+	constructor: ->
+		@delimiters_map = [
+			{ opener: '\\[', closer: '\\]', displayMode: true , enabled: () => @parenthesis_syntax_enabled() },
+			{ opener: '\\(', closer: '\\)', displayMode: false, enabled: () => @parenthesis_syntax_enabled() },
+			{ opener: '$$' , closer: '$$' , displayMode: true , enabled: () => @dollar_syntax_enabled() },
+			{ opener: '$'  , closer: '$'  , displayMode: false, enabled: () => @dollar_syntax_enabled() },
+		]
 
-		# Conflicts with message tokens syntax: $token$
-		#'$$' : { closer: '$$' , displayMode: true  },
-		#'$'  : { closer: '$'  , displayMode: false },
-	}
-
-	# Searches for the first opening delimiter in the string
-	find_opening_delimiter: (str) ->
-		# Search the string for each opening delimiter
-		matches = ({options: o, pos: str.indexOf(b)} for b,o of @delimiters_map)
-		positions = (b.pos for b in matches when b.pos >= 0)
+	# Searches for the first opening delimiter in the string from a given position
+	find_opening_delimiter: (str, start) -> # Search the string for each opening delimiter
+		matches = ({options: o, pos: str.indexOf(o.opener, start)} for o in @delimiters_map when o.enabled())
+		positions = (m.pos for m in matches when m.pos >= 0)
 
 		# No opening delimiters were found
 		if positions.length == 0
@@ -26,14 +26,17 @@ class Katex
 		# Take the first delimiter found
 		pos = Math.min.apply Math, positions
 
-		match_index = (b.pos for b in matches).indexOf(pos)
+		match_index = (m.pos for m in matches).indexOf(pos)
 		match = matches[match_index]
 
 		return match
 
 	class Boundary
-		length: () ->
+		length: ->
 			return @end - @start
+
+		extract: (str) ->
+			return str.substr @start, @length()
 
 	# Returns the outer and inner boundaries of the latex block starting
 	# at the given opening delimiter
@@ -62,14 +65,16 @@ class Katex
 
 	# Searches for the first latex block in the given string
 	find_latex: (str) ->
-		unless str.length and (opening_delimiter_match = @find_opening_delimiter str)?
-			return null
-		
-		match = @get_latex_boundaries str, opening_delimiter_match
+		start = 0
+		while (opening_delimiter_match = @find_opening_delimiter str, start++)?
 
-		match?.options = opening_delimiter_match.options
+			match = @get_latex_boundaries str, opening_delimiter_match
 
-		return match
+			if match?.inner.extract(str).trim().length
+				match.options = opening_delimiter_match.options
+				return match
+
+		return null
 
 	# Breaks a message to what comes before, after and to the content of a
 	# matched latex block
@@ -77,10 +82,10 @@ class Katex
 		before = str.substr 0, match.outer.start
 		after  = str.substr match.outer.end
 
-		latex = str.substr match.inner.start, match.inner.length()
+		latex = match.inner.extract str
 		latex = s.unescapeHTML latex
 
-		return { before: before, latex : latex, after : after } 
+		return { before: before, latex : latex, after : after }
 
 	# Takes a latex math string and the desired display mode and renders it
 	# to HTML using the KaTeX library
@@ -90,19 +95,20 @@ class Katex
 		catch e
 			display_mode = if displayMode then "block" else "inline"
 			rendered =  "<div class=\"katex-error katex-#{display_mode}-error\">"
-			rendered += 	"#{e.message}"
+			rendered += 	"#{s.escapeHTML e.message}"
 			rendered += "</div>"
-		
+
 		return rendered
 
 	# Takes a string and renders all latex blocks inside it
-	render: (str) ->
+	render: (str, render_func) ->
 		result = ''
 
-		while true
+		loop
 
 			# Find the first latex block in the string
 			match = @find_latex str
+
 			unless match?
 				result += str
 				break
@@ -111,9 +117,9 @@ class Katex
 
 			# Add to the reuslt what comes before the latex block as well as
 			# the rendered latex content
-			rendered = @render_latex parts.latex, match.options.displayMode
+			rendered = render_func parts.latex, match.options.displayMode
 			result += parts.before + rendered
-			
+
 			# Set what comes after the latex block to be examined next
 			str = parts.after
 
@@ -122,7 +128,7 @@ class Katex
 	# Takes a rocketchat message and renders latex in its content
 	render_message: (message) ->
 		# Render only if enabled in admin panel
-		if RocketChat.settings.get('Katex_Enabled')
+		if @katex_enabled()
 			msg = message
 
 			if not _.isString message
@@ -131,7 +137,22 @@ class Katex
 				else
 					return message
 
-			msg = @render msg
+			if _.isString message
+				render_func = (latex, displayMode) =>
+					return @render_latex latex, displayMode
+			else
+				message.tokens ?= []
+
+				render_func = (latex, displayMode) =>
+					token = "=&=#{Random.id()}=&="
+
+					message.tokens.push
+						token: token
+						text: @render_latex latex, displayMode
+
+					return token
+
+			msg = @render msg, render_func
 
 			if not _.isString message
 				message.html = msg
@@ -140,10 +161,20 @@ class Katex
 
 		return message
 
+	katex_enabled: ->
+		return RocketChat.settings.get('Katex_Enabled')
+
+	dollar_syntax_enabled: ->
+		return RocketChat.settings.get('Katex_Dollar_Syntax')
+
+	parenthesis_syntax_enabled: ->
+		return RocketChat.settings.get('Katex_Parenthesis_Syntax')
+
+
 RocketChat.katex = new Katex
 
 cb = RocketChat.katex.render_message.bind(RocketChat.katex)
-RocketChat.callbacks.add 'renderMessage', cb
+RocketChat.callbacks.add 'renderMessage', cb, RocketChat.callbacks.priority.HIGH - 1, 'katex'
 
 if Meteor.isClient
 	Blaze.registerHelper 'RocketChatKatex', (text) ->

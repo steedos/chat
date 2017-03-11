@@ -1,111 +1,76 @@
-this.processWebhookMessage = function(messageObj, user, defaultValues) {
-	var attachment, channel, channelType, i, len, message, ref, rid, room, roomUser;
+this.processWebhookMessage = function(messageObj, user, defaultValues = { channel: '', alias: '', avatar: '', emoji: '' }) {
+	const sentData = [];
+	const channels = [].concat(messageObj.channel || messageObj.roomId || defaultValues.channel);
 
-	if (!defaultValues) {
-		defaultValues = {
-			channel: '',
-			alias: '',
-			avatar: '',
-			emoji: ''
-		};
-	}
+	for (const channel of channels) {
+		const channelType = channel[0];
 
-	channel = messageObj.channel || defaultValues.channel;
+		let channelValue = channel.substr(1);
+		let room;
 
-	channelType = channel[0];
+		switch (channelType) {
+			case '#':
+				room = RocketChat.getRoomByNameOrIdWithOptionToJoin({ currentUserId: user._id, nameOrId: channelValue, joinChannel: true });
+				break;
+			case '@':
+				room = RocketChat.getRoomByNameOrIdWithOptionToJoin({ currentUserId: user._id, nameOrId: channelValue, type: 'd' });
+				break;
+			default:
+				channelValue = channelType + channelValue;
 
-	channel = channel.substr(1);
-
-	switch (channelType) {
-		case '#':
-			room = RocketChat.models.Rooms.findOne({
-				$or: [
-					{
-						_id: channel
-					}, {
-						name: channel
-					}
-				]
-			});
-			if (!_.isObject(room)) {
-				throw new Meteor.Error('invalid-channel');
-			}
-			rid = room._id;
-			if (room.t === 'c') {
-				Meteor.runAsUser(user._id, function() {
-					return Meteor.call('joinRoom', room._id);
-				});
-			}
-			break;
-		case '@':
-			roomUser = RocketChat.models.Users.findOne({
-				$or: [
-					{
-						_id: channel
-					}, {
-						username: channel
-					}
-				]
-			}) || {};
-			rid = [user._id, roomUser._id].sort().join('');
-			room = RocketChat.models.Rooms.findOne({
-				_id: {
-					$in: [rid, channel]
+				//Try to find the room by id or name if they didn't include the prefix.
+				room = RocketChat.getRoomByNameOrIdWithOptionToJoin({ currentUserId: user._id, nameOrId: channelValue, joinChannel: true, errorOnEmpty: false });
+				if (room) {
+					break;
 				}
-			});
-			if (!_.isObject(roomUser) && !_.isObject(room)) {
+
+				//We didn't get a room, let's try finding direct messages
+				room = RocketChat.getRoomByNameOrIdWithOptionToJoin({ currentUserId: user._id, nameOrId: channelValue, type: 'd', tryDirectByUserIdOnly: true });
+				if (room) {
+					break;
+				}
+
+				//No room, so throw an error
 				throw new Meteor.Error('invalid-channel');
-			}
-			if (!room) {
-				Meteor.runAsUser(user._id, function() {
-					Meteor.call('createDirectMessage', roomUser.username);
-					room = RocketChat.models.Rooms.findOne(rid);
-				});
-			}
-			break;
-		default:
-			throw new Meteor.Error('invalid-channel-type');
-	}
+		}
 
-	if (messageObj.attachments && !_.isArray(messageObj.attachments)) {
-		console.log('Attachments should be Array, ignoring value'.red, messageObj.attachments);
-		messageObj.attachments = undefined;
-	}
+		if (messageObj.attachments && !_.isArray(messageObj.attachments)) {
+			console.log('Attachments should be Array, ignoring value'.red, messageObj.attachments);
+			messageObj.attachments = undefined;
+		}
 
-	message = {
-		alias: messageObj.username || messageObj.alias || defaultValues.alias,
-		msg: _.trim(messageObj.text || messageObj.msg || ''),
-		attachments: messageObj.attachments,
-		parseUrls: messageObj.parseUrls !== undefined ? messageObj.parseUrls : !messageObj.attachments,
-		bot: messageObj.bot,
-		groupable: false
-	};
+		const message = {
+			alias: messageObj.username || messageObj.alias || defaultValues.alias,
+			msg: _.trim(messageObj.text || messageObj.msg || ''),
+			attachments: messageObj.attachments,
+			parseUrls: messageObj.parseUrls !== undefined ? messageObj.parseUrls : !messageObj.attachments,
+			bot: messageObj.bot,
+			groupable: (messageObj.groupable !== undefined) ? messageObj.groupable : false
+		};
 
-	if (!_.isEmpty(messageObj.icon_url) || !_.isEmpty(messageObj.avatar)) {
-		message.avatar = messageObj.icon_url || messageObj.avatar;
-	} else if (!_.isEmpty(messageObj.icon_emoji) || !_.isEmpty(messageObj.emoji)) {
-		message.emoji = messageObj.icon_emoji || messageObj.emoji;
-	} else if (!_.isEmpty(defaultValues.avatar)) {
-		message.avatar = defaultValues.avatar;
-	} else if (!_.isEmpty(defaultValues.emoji)) {
-		message.emoji = defaultValues.emoji;
-	}
+		if (!_.isEmpty(messageObj.icon_url) || !_.isEmpty(messageObj.avatar)) {
+			message.avatar = messageObj.icon_url || messageObj.avatar;
+		} else if (!_.isEmpty(messageObj.icon_emoji) || !_.isEmpty(messageObj.emoji)) {
+			message.emoji = messageObj.icon_emoji || messageObj.emoji;
+		} else if (!_.isEmpty(defaultValues.avatar)) {
+			message.avatar = defaultValues.avatar;
+		} else if (!_.isEmpty(defaultValues.emoji)) {
+			message.emoji = defaultValues.emoji;
+		}
 
-	if (_.isArray(message.attachments)) {
-		ref = message.attachments;
-		for (i = 0, len = ref.length; i < len; i++) {
-			attachment = ref[i];
-			if (attachment.msg) {
-				attachment.text = _.trim(attachment.msg);
-				delete attachment.msg;
+		if (_.isArray(message.attachments)) {
+			for (let i = 0; i < message.attachments.length; i++) {
+				const attachment = message.attachments[i];
+				if (attachment.msg) {
+					attachment.text = _.trim(attachment.msg);
+					delete attachment.msg;
+				}
 			}
 		}
+
+		const messageReturn = RocketChat.sendMessage(user, message, room);
+		sentData.push({ channel: channel, message: messageReturn });
 	}
 
-	var messageReturn = RocketChat.sendMessage(user, message, room, {});
-
-	return {
-		channel: channel,
-		message: messageReturn
-	};
+	return sentData;
 };

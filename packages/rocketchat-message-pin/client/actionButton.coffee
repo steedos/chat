@@ -1,3 +1,4 @@
+import toastr from 'toastr'
 Meteor.startup ->
 	RocketChat.MessageAction.addButton
 		id: 'pin-message'
@@ -15,11 +16,12 @@ Meteor.startup ->
 				if error
 					return handleError(error)
 		validation: (message) ->
-			if message.pinned or not RocketChat.settings.get('Message_AllowPinning')
+			if not RocketChat.models.Subscriptions.findOne({ rid: message.rid })?
+				return false
+			else if message.pinned or not RocketChat.settings.get('Message_AllowPinning')
 				return false
 
 			return RocketChat.authz.hasAtLeastOnePermission 'pin-message', message.rid
-
 		order: 20
 
 	RocketChat.MessageAction.addButton
@@ -38,11 +40,12 @@ Meteor.startup ->
 				if error
 					return handleError(error)
 		validation: (message) ->
-			if not message.pinned or not RocketChat.settings.get('Message_AllowPinning')
+			if not RocketChat.models.Subscriptions.findOne({ rid: message.rid })?
+				return false
+			else if not message.pinned or not RocketChat.settings.get('Message_AllowPinning')
 				return false
 
 			return RocketChat.authz.hasAtLeastOnePermission 'pin-message', message.rid
-
 		order: 21
 
 	RocketChat.MessageAction.addButton
@@ -54,7 +57,31 @@ Meteor.startup ->
 		]
 		action: (event, instance) ->
 			message = @_arguments[1]
-			$('.message-dropdown:visible').hide()
+			RocketChat.MessageAction.hideDropDown()
 			RoomHistoryManager.getSurroundingMessages(message, 50)
+		validation: (message) ->
+			if not RocketChat.models.Subscriptions.findOne({ rid: message.rid })?
+				return false
+
+			return true
 		order: 100
 
+	RocketChat.MessageAction.addButton
+		id: 'permalink-pinned'
+		icon: 'icon-link'
+		i18nLabel: 'Permalink'
+		classes: 'clipboard'
+		context: [
+			'pinned'
+		]
+		action: (event, instance) ->
+			message = @_arguments[1]
+			RocketChat.MessageAction.hideDropDown()
+			$(event.currentTarget).attr('data-clipboard-text', RocketChat.MessageAction.getPermaLink(message._id));
+			toastr.success(TAPi18n.__('Copied'))
+		validation: (message) ->
+			if not RocketChat.models.Subscriptions.findOne({ rid: message.rid })?
+				return false
+
+			return true
+		order: 101

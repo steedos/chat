@@ -18,6 +18,11 @@ RocketChat.callbacks.add('afterSaveMessage', function(message, room) {
 		return message;
 	}
 
+	// if the message has a type means it is a special message (like the closing comment), so skips
+	if (message.t) {
+		return message;
+	}
+
 	const SMSService = RocketChat.SMS.getService(RocketChat.settings.get('SMS_Service'));
 
 	if (!SMSService) {
@@ -34,4 +39,4 @@ RocketChat.callbacks.add('afterSaveMessage', function(message, room) {
 
 	return message;
 
-}, RocketChat.callbacks.priority.LOW);
+}, RocketChat.callbacks.priority.LOW, 'sendMessageBySms');

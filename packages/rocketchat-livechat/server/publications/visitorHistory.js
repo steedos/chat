@@ -1,9 +1,9 @@
-Meteor.publish('livechat:visitorHistory', function(roomId) {
+Meteor.publish('livechat:visitorHistory', function({ rid: roomId }) {
 	if (!this.userId) {
 		return this.error(new Meteor.Error('error-not-authorized', 'Not authorized', { publish: 'livechat:visitorHistory' }));
 	}
 
-	if (!RocketChat.authz.hasPermission(this.userId, 'view-livechat-rooms')) {
+	if (!RocketChat.authz.hasPermission(this.userId, 'view-l-room')) {
 		return this.error(new Meteor.Error('error-not-authorized', 'Not authorized', { publish: 'livechat:visitorHistory' }));
 	}
 
@@ -15,8 +15,9 @@ Meteor.publish('livechat:visitorHistory', function(roomId) {
 		return this.error(new Meteor.Error('error-not-authorized', 'Not authorized', { publish: 'livechat:visitorHistory' }));
 	}
 
-	if (room && room.v && room.v.token) {
-		return RocketChat.models.Rooms.findByVisitorToken(room.v.token);
+	if (room && room.v && room.v._id) {
+		// CACHE: can we stop using publications here?
+		return RocketChat.models.Rooms.findByVisitorId(room.v._id);
 	} else {
 		return this.ready();
 	}

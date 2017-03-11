@@ -1,19 +1,21 @@
 @echo off
 
+SET NODE_ENV="production"
 cd packages/rocketchat-livechat/app
-call meteor build .meteor/build/ --directory
+call meteor npm install --production
+call meteor build --headless --directory .meteor/build/
 
-cd ..
-mkdir public
+SET LIVECHAT_DIR="../../../public/livechat"
+SET BUILD_DIR=".meteor/build/bundle/programs/web.browser"
 
-rm -f public/livechat.css
-rm -f public/livechat.js
-rm -f public/head.html
+mkdir ..\public
+del /q /s ..\public\*
 
-cp app/.meteor/build/bundle/programs/web.browser/*.css public/livechat.css
-cp app/.meteor/build/bundle/programs/web.browser/*.js public/livechat.js
-cp app/.meteor/build/bundle/programs/web.browser/head.html public/head.html
+rmdir /q /s %LIVECHAT_DIR%
+mkdir %LIVECHAT_DIR%
 
-::echo "body {background-color: red;}" > livechat.css
+xcopy /y %BUILD_DIR%\*.css %LIVECHAT_DIR%\livechat.css*
+xcopy /y %BUILD_DIR%\*.js %LIVECHAT_DIR%\livechat.js*
+xcopy /y %BUILD_DIR%\head.html ..\public\head.html*
 
-rm -rf app/.meteor/build/
+rmdir /s /q .meteor\build\

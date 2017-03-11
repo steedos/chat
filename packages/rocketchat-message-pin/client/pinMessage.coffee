@@ -6,6 +6,8 @@ Meteor.methods
 		if not RocketChat.settings.get 'Message_AllowPinning'
 			return false
 
+		if not RocketChat.models.Subscriptions.findOne({ rid: message.rid })?
+			return false
 
 		ChatMessage.update
 			_id: message._id
@@ -19,6 +21,8 @@ Meteor.methods
 		if not RocketChat.settings.get 'Message_AllowPinning'
 			return false
 
+		if not RocketChat.models.Subscriptions.findOne({ rid: message.rid })?
+			return false
 
 		ChatMessage.update
 			_id: message._id

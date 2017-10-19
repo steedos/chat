@@ -8,6 +8,7 @@ Meteor.startup(function() {
 				u: 1,
 				usernames: 1,
 				topic: 1,
+				announcement: 1,
 				muted: 1,
 				archived: 1,
 				ro: 1,
@@ -18,10 +19,6 @@ Meteor.startup(function() {
 				joinCodeRequired: 1
 			}
 		};
-
-		if (RocketChat.authz.hasPermission(this.userId, 'view-join-code')) {
-			options.fields.joinCode = 1;
-		}
 
 		if (RocketChat.authz.hasPermission(this.userId, 'view-c-room')) {
 			return RocketChat.models.Rooms.findByTypeAndName('c', identifier, options);
@@ -44,6 +41,7 @@ Meteor.startup(function() {
 				u: 1,
 				usernames: 1,
 				topic: 1,
+				announcement: 1,
 				muted: 1,
 				archived: 1,
 				ro: 1,

@@ -13,6 +13,11 @@ if [ -d "$BUNDLE_PATH" ]; then
 	git pull
 
 	echo "=> Npm install..."; echo;
+	cd packages/rocketchat-katex
+	meteor npm install -d
+	cd ../rocketchat-livechat/app
+	meteor npm install -d
+	cd ../../../
 	meteor npm install -d
 
 	# on the very first build, meteor build command should fail due to a bug on emojione package (related to phantomjs installation)

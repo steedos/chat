@@ -7,7 +7,7 @@ METEOR_ALLOW_SUPERUSER=1
 
 if [ -d "$BUNDLE_PATH" ]; then
 	echo "=> Updating..."; echo;
-	git clean -df
+	# git clean -df
 	git checkout -- .
 	git checkout steedos
 	git pull

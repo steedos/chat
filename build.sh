@@ -12,17 +12,16 @@ if [ -d "$BUNDLE_PATH" ]; then
 	git pull
 
 	echo "=> Npm install..."; echo;
-	npm config set registry https://registry.npm.taobao.org
-	cd packages/rocketchat-katex
-	npm install -d
-	cd ../rocketchat-livechat/app
-	npm install bcrypt -d
-	npm install -d
-	cd ../../../
-	npm install -d
+	meteor npm install --registry=https://registry.npm.taobao.org -d
+
+	# on the very first build, meteor build command should fail due to a bug on emojione package (related to phantomjs installation)
+	# the command below forces the error to happen before build command (not needed on subsequent builds)
+	set +e
+	meteor add rocketchat:lib
+	set -e
 
 	echo "=> Building bundle..."; echo;
-	meteor build --server https://cn.steedos.com/chat --directory $BUNDLE_PATH --allow-superuser
+	meteor build --server-only --server https://cn.steedos.com/chat --directory $BUNDLE_PATH --allow-superuser
 	cd $BUNDLE_PATH/bundle/programs/server
 	rm -rf node_modules
 	rm -f npm-shrinkwrap.json

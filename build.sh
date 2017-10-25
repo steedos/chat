@@ -12,11 +12,13 @@ if [ -d "$BUNDLE_PATH" ]; then
 	git pull
 
 	echo "=> Npm install..."; echo;
-	npm config set registry https://registry.npm.taobao.org
-	npm install -d
 	cd packages/rocketchat-katex
 	npm install -d
-	cd ../../
+	cd ../rocketchat-livechat/app
+	npm install -d
+	cd ../../../
+	npm config set registry https://registry.npm.taobao.org
+	npm install -d
 
 	echo "=> Building bundle..."; echo;
 	meteor build --server https://cn.steedos.com/chat --directory $BUNDLE_PATH --allow-superuser

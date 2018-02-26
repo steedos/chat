@@ -1,6 +1,7 @@
 const accountsConfig = {
 	forbidClientAccountCreation: true,
-	loginExpirationInDays: RocketChat.settings.get('Accounts_LoginExpiration')
+	// loginExpirationInDays: RocketChat.settings.get('Accounts_LoginExpiration')
+	loginExpirationInDays: null
 };
 
 Accounts.config(accountsConfig);
